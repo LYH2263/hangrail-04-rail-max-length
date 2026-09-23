@@ -1,4 +1,4 @@
-from app.services.rail_engine import Segment, first_fit, free_gaps
+from app.services.rail_engine import Placement, Segment, first_fit, free_gaps
 
 
 def test_first_fit_leftmost():
@@ -24,3 +24,20 @@ def test_no_space():
 def test_free_gaps_edges():
     gaps = free_gaps(50, [Segment(10, 20), Segment(30, 35)])
     assert gaps == [Segment(0, 10), Segment(20, 30), Segment(35, 50)]
+
+
+def test_garment_over_limit_skips_rail_even_with_space():
+    # 杆上空余充足（无占位），但衣长 90 超过上限 80，必须跳过
+    p = first_fit(200, [], 90, max_garment_length_cm=80)
+    assert p is None
+
+
+def test_garment_at_limit_fits():
+    p = first_fit(200, [], 80, max_garment_length_cm=80)
+    assert p == Placement(0, 80)
+
+
+def test_no_limit_allows_long_garment():
+    # 未配置上限的杆不限制衣长，长衣可正常上杆
+    p = first_fit(200, [], 90, max_garment_length_cm=None)
+    assert p == Placement(0, 90)

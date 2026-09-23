@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class StoreOut(BaseModel):
@@ -13,7 +13,12 @@ class RailOut(BaseModel):
     store_id: int
     label: str
     length_cm: float
+    max_garment_length_cm: float | None
     model_config = {"from_attributes": True}
+
+
+class RailUpdate(BaseModel):
+    max_garment_length_cm: float | None = Field(default=None, gt=0)
 
 
 class OrderOut(BaseModel):
