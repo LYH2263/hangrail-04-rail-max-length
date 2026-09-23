@@ -13,6 +13,7 @@ from app.schemas.schemas import (
     OrderOut,
     PickupRequest,
     RailOut,
+    RailUpdate,
     StoreOut,
 )
 from app.services.rail_engine import Segment, first_fit
@@ -33,6 +34,17 @@ def stores(db: Session = Depends(get_db)):
 @api_router.get("/rails", response_model=list[RailOut])
 def rails(db: Session = Depends(get_db)):
     return db.scalars(select(HangRail).order_by(HangRail.id)).all()
+
+
+@api_router.patch("/rails/{rail_id}", response_model=RailOut)
+def update_rail(rail_id: int, body: RailUpdate, db: Session = Depends(get_db)):
+    rail = db.get(HangRail, rail_id)
+    if not rail:
+        raise HTTPException(404, "挂杆不存在")
+    rail.max_garment_cm = body.max_garment_cm
+    db.commit()
+    db.refresh(rail)
+    return rail
 
 
 @api_router.get("/orders", response_model=list[OrderOut])
@@ -80,12 +92,16 @@ def hang(body: HangRequest, db: Session = Depends(get_db)):
     if not rails:
         raise HTTPException(404, "无可用挂杆")
 
+    length_blocked = 0
     for rail in rails:
+        if rail.max_garment_cm is not None and order.length_cm > rail.max_garment_cm:
+            length_blocked += 1
+            continue
         active = db.scalars(
             select(RailPlacement).where(RailPlacement.rail_id == rail.id, RailPlacement.active == 1)
         ).all()
         occupied = [Segment(p.start_cm, p.end_cm) for p in active]
-        place = first_fit(rail.length_cm, occupied, order.length_cm)
+        place = first_fit(rail.length_cm, occupied, order.length_cm, rail.max_garment_cm)
         if place is None:
             continue
         db.add(
@@ -102,6 +118,8 @@ def hang(body: HangRequest, db: Session = Depends(get_db)):
         db.refresh(order)
         return order
 
+    if length_blocked and length_blocked == len(rails):
+        raise HTTPException(409, "衣长超过所有挂杆的可收衣长上限")
     raise HTTPException(409, "挂杆空间不足")
 
 
